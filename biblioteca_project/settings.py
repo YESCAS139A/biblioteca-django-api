@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
+    'graphene_django',
     
     # Tu aplicación
     'libros',
@@ -62,6 +63,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
+    'libros.middleware.SecurityMiddleware',
+    'libros.middleware.RateLimitMiddleware',
 ]
 
 ROOT_URLCONF = 'biblioteca_project.urls'
@@ -164,24 +167,36 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.TokenAuthentication',          # Token tradicional
         'rest_framework.authentication.SessionAuthentication',        # Sesión (para admin)
     ],
+
     
-    # PERMISOS: Qué pueden hacer los usuarios
+    'DEFAULT_THROTTLE_CLASSES': [
+        'libros.throttles.BurstRateThrottle',
+        'libros.throttles.SustainedRateThrottle',
+    ],
+    
+    'DEFAULT_THROTTLE_RATES': {
+        'burst': '60/min',        # 60 por minuto
+        'sustained': '1000/day',  # 1000 por día
+        'anon_burst': '20/min',   # Anónimos: 20 por minuto
+        'premium': '10000/day',   # Premium: 10000 por día
+    },
+    
+
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
     ],
     
-    # PAGINACIÓN: Cuántos resultados por página
+    
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
     
-    # FILTROS: Permitir búsquedas y ordenamiento
+    
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
 }
-
 
 # =======================
 # SIMPLE JWT CONFIG
@@ -202,7 +217,7 @@ SIMPLE_JWT = {
     'VERIFYING_KEY': None,                          # Solo para algoritmos asimétricos (RSA)
     
     # 📋 CONFIGURACIÓN DE HEADERS
-    'AUTH_HEADER_TYPES': ('Bearer',),               # Tipo: "Authorization: Bearer TOKEN"
+    'AUTH_HEADER_TYPES': ('JWT',),               # Tipo: "Authorization: Bearer TOKEN"
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',       # Nombre del header
     
     # 👤 CLAIMS DEL USUARIO
@@ -281,11 +296,14 @@ OAUTH2_PROVIDER = {
     # Tiempo de vida de los tokens
     'ACCESS_TOKEN_EXPIRE_SECONDS': 3600,        # 1 hora
     'REFRESH_TOKEN_EXPIRE_SECONDS': 86400 * 7,  # 7 días
+    'AUTHORIZATION_CODE_EXPIRE_SECONDS': 600,  # 10 minutos
+    'ROTATE_REFRESH_TOKEN': True,
     
     # Scopes disponibles
     'SCOPES': {
         'read': 'Acceso de lectura',
         'write': 'Acceso de escritura',
+        'groups': 'Access to groups - Acceso a grupos de usuario'
     },
     
     # Modelos de tokens
@@ -294,3 +312,69 @@ OAUTH2_PROVIDER = {
     'REFRESH_TOKEN_MODEL': 'oauth2_provider.RefreshToken',
     'ID_TOKEN_MODEL': 'oauth2_provider.IDToken',
 }
+
+# GraphQL Settings
+GRAPHENE = {
+    'SCHEMA': 'libros.schema.schema',
+    'MIDDLEWARE': [
+        'graphene_django.debug.DjangoDebugMiddleware',
+    ],
+}
+
+# Solo para PRODUCCIÓN (no desarrollo)
+if not DEBUG:
+    # Forzar HTTPS
+    SECURE_SSL_REDIRECT = True
+    
+    # Cookies seguras
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    
+    # Headers de seguridad
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    
+    # HSTS (HTTP Strict Transport Security)
+    SECURE_HSTS_SECONDS = 31536000  # 1 año
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    
+    # Proxy SSL headers
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Orígenes permitidos para CORS
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://tudominio.com",
+    "https://www.tudominio.com",
+]
+
+# Permitir credenciales
+CORS_ALLOW_CREDENTIALS = True
+
+# Headers permitidos
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# Orígenes confiables para CSRF
+CSRF_TRUSTED_ORIGINS = [
+    "https://tudominio.com",
+    "https://www.tudominio.com",
+]
+
+# Cookie CSRF segura en producción
+if not DEBUG:
+    CSRF_COOKIE_SECURE = True
+    CSRF_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_SAMESITE = 'Strict'
