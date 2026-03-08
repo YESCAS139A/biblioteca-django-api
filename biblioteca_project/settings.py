@@ -1,16 +1,23 @@
+import os
 from pathlib import Path
 from datetime import timedelta
-
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# ==============================
+# CARGAR VARIABLES DE ENTORNO
+# ==============================
+# Esto busca el archivo .env en la raíz de tu proyecto
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-ax!&u#e9@3*tj^&#5)sglnd%&^q92zh56rfjw^9lk!u*%2b90p'
+# Lee la clave del .env, si no la encuentra usa la que tenías por defecto
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-ax!&u#e9@3*tj^&#5)sglnd%&^q92zh56rfjw^9lk!u*%2b90p')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -26,26 +33,35 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'django_extensions',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
 
     # Third-party apps
     'rest_framework',
     'corsheaders',
     'django_filters',
-
+    'oauth2_provider', # Django OAuth Toolkit
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
+    
     # Tu aplicación
     'libros',
 ]
 
 MIDDLEWARE = [
+    'django.contrib.sites.middleware.CurrentSiteMiddleware', # Opcional pero recomendado para sites
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',  # ← AGREGAR ESTO
+    'corsheaders.middleware.CorsMiddleware',  # CORS siempre arriba de CommonMiddleware
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
 ]
 
 ROOT_URLCONF = 'biblioteca_project.urls'
@@ -53,7 +69,7 @@ ROOT_URLCONF = 'biblioteca_project.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -77,16 +93,15 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'biblioteca_uni4',
         'USER': 'root',
-        'PASSWORD': '123456',  # ← Cambia esto a tu password de MySQL
+        'PASSWORD': os.getenv('DB_PASSWORD', '123456'),  # ← Lee del .env, o usa '123456' por defecto
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
-            'charset': 'utf8mb4',
+            'charset': 'latin1',
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
         },
     }
 }
-
 
 
 # Password validation
@@ -108,8 +123,13 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
-# Internationalization
-# https://docs.djangoproject.com/en/4.2/topics/i18n/
+# ==============================
+# CONFIGURACIÓN DE IDIOMA Y ZONA HORARIA
+# ==============================
+LANGUAGE_CODE = 'es-mx'
+TIME_ZONE = 'America/Hermosillo'
+USE_I18N = True
+USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
@@ -140,7 +160,7 @@ REST_FRAMEWORK = {
     # AUTENTICACIÓN: Qué métodos acepta tu API
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',  # JWT (Token moderno)
-        'oauth2_provider.contrib.rest_framework.OAuth2Authentication',  # ← AGREGAR para OAuth 2.0
+        'oauth2_provider.contrib.rest_framework.OAuth2Authentication',  # Para OAuth 2.0
         'rest_framework.authentication.TokenAuthentication',          # Token tradicional
         'rest_framework.authentication.SessionAuthentication',        # Sesión (para admin)
     ],
@@ -166,7 +186,6 @@ REST_FRAMEWORK = {
 # =======================
 # SIMPLE JWT CONFIG
 # =======================
-
 SIMPLE_JWT = {
     # ⏱️ DURACIÓN DE TOKENS
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),    # Token de acceso válido 1 hora
@@ -196,10 +215,82 @@ SIMPLE_JWT = {
     'JTI_CLAIM': 'jti',                             # JWT ID (identificador único)
 }
 
-# ==============================
-# CONFIGURACIÓN DE IDIOMA Y ZONA HORARIA
-# ==============================
-LANGUAGE_CODE = 'es-mx'
-TIME_ZONE = 'America/Hermosillo'  # Hermosillo
-USE_I18N = True
-USE_TZ = True
+
+# =======================
+# SITE CONFIGURATION
+# =======================
+SITE_ID = 1
+
+
+# =======================
+# AUTHENTICATION BACKENDS
+# =======================
+AUTHENTICATION_BACKENDS = [
+    # Backend por defecto de Django (username/password)
+    'django.contrib.auth.backends.ModelBackend',
+    
+    # Backend de allauth para OAuth social
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+
+# =======================
+# DJANGO ALLAUTH CONFIG
+# =======================
+
+# Configuración de cuentas
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_USERNAME_REQUIRED = False  # Solo email para login social
+ACCOUNT_AUTHENTICATION_METHOD = 'email'
+ACCOUNT_EMAIL_VERIFICATION = 'optional'  # Para desarrollo: 'mandatory' en producción
+ACCOUNT_EMAIL_MAX_LENGTH = 190
+
+# Configuración de login social
+SOCIALACCOUNT_AUTO_SIGNUP = True  # Crear usuario automáticamente
+SOCIALACCOUNT_EMAIL_VERIFICATION = 'none'  # No verificar email en OAuth
+
+# Proveedores OAuth configurados (Leyendo del .env)
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+        },
+        'APP': {
+            'client_id': os.getenv('GOOGLE_CLIENT_ID', ''),     # ← AHORA LEE DEL .ENV
+            'secret': os.getenv('GOOGLE_CLIENT_SECRET', ''),    # ← AHORA LEE DEL .ENV
+            'key': ''
+        }
+    }
+}
+
+# =======================
+# REDIRECCIONES DE LOGIN (¡AGREGADO!)
+# =======================
+LOGIN_REDIRECT_URL = '/'           # A dónde ir tras login exitoso
+LOGOUT_REDIRECT_URL = '/'          # A dónde ir tras logout
+SOCIALACCOUNT_LOGIN_ON_GET = True  # Para evitar el prompt doble de Google
+
+# =======================
+# OAUTH 2.0 PROVIDER SETTINGS (FUSIONADO Y CORREGIDO)
+# =======================
+OAUTH2_PROVIDER = {
+    # Tiempo de vida de los tokens
+    'ACCESS_TOKEN_EXPIRE_SECONDS': 3600,        # 1 hora
+    'REFRESH_TOKEN_EXPIRE_SECONDS': 86400 * 7,  # 7 días
+    
+    # Scopes disponibles
+    'SCOPES': {
+        'read': 'Acceso de lectura',
+        'write': 'Acceso de escritura',
+    },
+    
+    # Modelos de tokens
+    'ACCESS_TOKEN_MODEL': 'oauth2_provider.AccessToken',
+    'APPLICATION_MODEL': 'oauth2_provider.Application',
+    'REFRESH_TOKEN_MODEL': 'oauth2_provider.RefreshToken',
+    'ID_TOKEN_MODEL': 'oauth2_provider.IDToken',
+}

@@ -4,6 +4,7 @@
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from .jwt_views import CustomTokenObtainPairView
 
 # Importar vistas JWT de SimpleJWT
 from rest_framework_simplejwt.views import (
@@ -14,6 +15,8 @@ from rest_framework_simplejwt.views import (
 
 # Importar ViewSets
 from . import api_views
+
+from . import oauth_views
 
 # ===== ROUTER PARA VIEWSETS =====
 # El router genera automáticamente las URLs para CRUD
@@ -51,5 +54,19 @@ urlpatterns = [
     # PUT    /api/libros/{id}/     - Actualizar libro
     # DELETE /api/libros/{id}/     - Eliminar libro
     # Y lo mismo para autores, categorias, prestamos
+    path('', include(router.urls)),
+
+    # JWT personalizado
+    path('auth/jwt/login/', CustomTokenObtainPairView.as_view(), name='jwt_login'),
+
+    #─────────────────────────────────
+    # 🔑 AUTENTICACIÓN OAUTH 2.0 (GOOGLE)
+    # ─────────────────────────────────
+    path('auth/google/redirect/', oauth_views.google_oauth_redirect, name='google_redirect'),
+    path('auth/google/callback/', oauth_views.google_oauth_callback, name='google_callback'),
+    
+    # ─────────────────────────────────
+    # 📚 ENDPOINTS CRUD
+    # ─────────────────────────────────
     path('', include(router.urls)),
 ]
