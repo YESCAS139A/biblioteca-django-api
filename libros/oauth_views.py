@@ -10,11 +10,13 @@ from urllib.parse import urlencode, quote
 import requests
 import logging
 import json 
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
-GOOGLE_REDIRECT_URI = 'http://127.0.0.1:8080/api/auth/google/callback/'
+redirect_uri = getattr(settings, 'OAUTH_REDIRECT_URI', 'http://127.0.0.1:8080/api/auth/google/callback/')
+
 
 @api_view(['POST', 'GET'])
 @permission_classes([AllowAny])
@@ -38,12 +40,12 @@ def google_oauth_callback(request):
         google_config = settings.SOCIALACCOUNT_PROVIDERS['google']['APP']
         
         token_data = {
-            'code': code,
-            'client_id': google_config['client_id'],
-            'client_secret': google_config['secret'],
-            'redirect_uri': GOOGLE_REDIRECT_URI,
-            'grant_type': 'authorization_code'
-        }
+        'code': code,
+        'client_id': google_config['client_id'],
+        'client_secret': google_config['secret'],
+        'redirect_uri': redirect_uri,  # ← Usar variable dinámica
+        'grant_type': 'authorization_code'
+    }
         
         token_response = requests.post(token_url, data=token_data, timeout=10)
         token_response.raise_for_status()
@@ -148,10 +150,12 @@ def google_oauth_redirect(request):
     """
     google_config = settings.SOCIALACCOUNT_PROVIDERS['google']['APP']
     scopes = settings.SOCIALACCOUNT_PROVIDERS['google']['SCOPE']
+    redirect_uri = getattr(settings, 'OAUTH_REDIRECT_URI', 'http://127.0.0.1:8080/api/auth/google/callback/')
+
     
     params = {
         'client_id': google_config["client_id"],
-        'redirect_uri': GOOGLE_REDIRECT_URI,  
+        '&redirect_uri={redirect_uri}'  # ← Usar variable dinámica 
         'scope': " ".join(scopes),
         'response_type': 'code',
         'access_type': 'offline',
@@ -160,4 +164,4 @@ def google_oauth_redirect(request):
     
     auth_url = f'https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}'
     
-    return redirect(auth_url, status=status.HTTP_200_OK)
+    return redirect(auth_url)
